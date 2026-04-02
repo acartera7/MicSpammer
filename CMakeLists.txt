@@ -19,6 +19,10 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
+# Install Qt 6.10.1 Prebuilt Components for MinGW 13.1.0 64-bit,
+# Qt 6.10.1 Source Components,
+# and Qt Multimedia
+
 #set(LIB_DIR "${CMAKE_SOURCE_DIR}/lib")
 set(Qt6_INSTALL_DIR "C:/Qt/6.10.1/mingw_64" CACHE PATH "Path to Qt installation")
 set(DLL_DIR "${Qt6_INSTALL_DIR}/bin")

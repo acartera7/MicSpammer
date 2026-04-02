@@ -180,6 +180,10 @@ void MicCapture::stop() {
     }
 }
 
+float MicCapture::getVolume() const {
+    return outputVolume;
+}
+
 void MicCapture::captureLoop() {
     //UINT32 blockAlign = captureFormat->nBlockAlign;
 

@@ -22,7 +22,7 @@ SoundInstance::SoundInstance(const QString& path,
     DWORD mon, out;
     if ( monitorDevice) {
         monitorDevice->GetState(&mon);
-        if (mon != DEVICE_STATE_ACTIVE) {
+        if (mon == DEVICE_STATE_ACTIVE) {
 
             hr = monitorDevice->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,(void**)&monitorAudioClient);
             if (FAILED(hr) || !monitorAudioClient) {
@@ -40,7 +40,7 @@ SoundInstance::SoundInstance(const QString& path,
     }
     if (outputDevice) {
         outputDevice->GetState(&out);
-        if (out != DEVICE_STATE_ACTIVE) {
+        if (out == DEVICE_STATE_ACTIVE) {
 
             // Initialize output audio client in shared mode
             hr = outputDevice->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,(void**)&outputAudioClient);
@@ -57,6 +57,7 @@ SoundInstance::SoundInstance(const QString& path,
             }
         }
     }
+    if (mon != DEVICE_STATE_ACTIVE && out != DEVICE_STATE_ACTIVE) return; // redundant check
 
     WAVEFORMATEXTENSIBLE neutralFormat = WasapiManager::getMainFormat();
     bytesPerFrame = neutralFormat.Format.nBlockAlign;

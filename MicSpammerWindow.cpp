@@ -96,14 +96,16 @@ MicSpammerWindow::MicSpammerWindow(QWidget *parent) :
         QCheckBox::indicator {
             width: 16px;
             height: 16px;
-        }
-        QCheckBox::indicator:unchecked {
-            image: url(:/icons/assets/microphone.png);
-        }
-        QCheckBox::indicator:checked {
+            border: 2px outset #aaaaaa;
             image: url(:/icons/assets/microphone-mute.png);
         }
+        QCheckBox::indicator:checked {
+            border: 2px inset darkgray;
+            image: url(:/icons/assets/microphone-mute-red.png);
+        }
+
     )");
+
 
     monitorMuteCheckBox = new QCheckBox(this);
     monitorMuteCheckBox->setCursor(Qt::PointingHandCursor);
@@ -112,12 +114,12 @@ MicSpammerWindow::MicSpammerWindow(QWidget *parent) :
         QCheckBox::indicator {
             width: 16px;
             height: 16px;
-        }
-        QCheckBox::indicator:unchecked {
-            image: url(:/icons/assets/unmute.png);
+            border: 2px outset #aaaaaa;
+            image: url(:/icons/assets/mute.png);
         }
         QCheckBox::indicator:checked {
-            image: url(:/icons/assets/mute.png);
+            image: url(:/icons/assets/mute-red.png);
+            border: 2px inset darkgray;
         }
     )");
 
@@ -128,12 +130,12 @@ MicSpammerWindow::MicSpammerWindow(QWidget *parent) :
         QCheckBox::indicator {
             width: 16px;
             height: 16px;
-        }
-        QCheckBox::indicator:unchecked {
-            image: url(:/icons/assets/unmute.png);
+            border: 2px outset #aaaaaa;
+            image: url(:/icons/assets/mute.png);
         }
         QCheckBox::indicator:checked {
-            image: url(:/icons/assets/mute.png);
+            image: url(:/icons/assets/mute-red.png);
+            border: 2px inset darkgray;
         }
     )");
 
@@ -243,6 +245,7 @@ MicSpammerWindow::MicSpammerWindow(QWidget *parent) :
         qDebug() << "Switched to page:" << page;
     });
 
+    // Devices
     connect(micComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
         this, &MicSpammerWindow::onMicDeviceChanged);
     connect(monitorComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
@@ -250,16 +253,41 @@ MicSpammerWindow::MicSpammerWindow(QWidget *parent) :
     connect(sendComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &MicSpammerWindow::onSendDeviceChanged);
 
+    // mute buttons
+
+    connect(micMuteCheckBox, &QCheckBox::checkStateChanged, this,
+        [this](Qt::CheckState state) {
+            if (state == Qt::Checked) {
+                onVolumeChanged(micVolumeSlider->objectName(), 0);
+            } else {
+                onVolumeChanged(micVolumeSlider->objectName(), micVolumeSlider->value());
+            }
+    });
+
+    connect(monitorMuteCheckBox, &QCheckBox::checkStateChanged, this,
+        [this](Qt::CheckState state) {
+            if (state == Qt::Checked) {
+                onVolumeChanged(monitorVolumeSlider->objectName(), 0);
+            } else {
+                onVolumeChanged(monitorVolumeSlider->objectName(), monitorVolumeSlider->value());
+            }
+    });
+
+    connect(sendMuteCheckBox, &QCheckBox::checkStateChanged, this,
+        [this](Qt::CheckState state) {
+            if (state == Qt::Checked) {
+                onVolumeChanged(sendVolumeSlider->objectName(), 0);
+            } else {
+                onVolumeChanged(sendVolumeSlider->objectName(), sendVolumeSlider->value());
+            }
+    });
+
     // TODO check for last profile
 
     monitorVolumeSlider->setValue(80);
     sendVolumeSlider->setValue(80);
     micVolumeSlider->setValue(80);
 
-}
-
-template<typename>
-constexpr auto MicSpammerWindow::qt_create_metaobjectdata() {
 }
 
 void MicSpammerWindow::onOpenFolder() {

@@ -24,6 +24,7 @@ public:
     void setVolume(float volume);
     void start();
     void stop();
+    float getVolume() const;
 
     // session persistence
     //QJsonObject saveState();
