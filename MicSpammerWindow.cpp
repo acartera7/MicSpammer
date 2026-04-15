@@ -282,6 +282,12 @@ MicSpammerWindow::MicSpammerWindow(QWidget *parent) :
             }
     });
 
+    // Create saves folder if not already existing
+    if (QDir().mkpath("saves")) {
+    } else {
+        qDebug() << "Error MicSpammerWindow: failed to make /saves folder" ;
+    }
+
     // TODO check for last profile
 
     monitorVolumeSlider->setValue(80);
@@ -455,13 +461,7 @@ void MicSpammerWindow::onSaveProfile() {
             {"output-volume", sendVolumeSlider->value()}
         };
 
-        if (QDir().mkpath("saves")) {
-            if (file.open(QIODevice::WriteOnly)) {
-                file.write(QJsonDocument(root).toJson());
-            }
-        } else {
-            qDebug() << "Error Save Profile: failed to make /saves folder" ;
-        }
+
         profileLabel->setText("Profile: " + QFileInfo(fileName).baseName());
         currentProfilePath = fileName;
     }
