@@ -121,7 +121,7 @@ void SoundInstance::setOutputVolume(float volume) {
 void SoundInstance::onPcmReady(const QByteArray& data) {
     // called once when file fully decoded
 
-    pcmData = std:: vector<BYTE>(data.begin(), data.end());
+    pcmData = std::vector<BYTE>(data.begin(), data.end());
     loadedOK = true;
 
     startPlaybackThread();
