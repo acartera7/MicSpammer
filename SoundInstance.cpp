@@ -11,12 +11,16 @@ SoundInstance::SoundInstance(const QString& path,
                              IMMDevice* outputDevice,
                              float mVolume,
                              float oVolume,
+                             bool mMute,
+                             bool oMute,
                              QObject *parent) :
         QObject(parent),
         filePath(path),
         stopFlag(false),
         monitorVolume(mVolume),
-        outputVolume(oVolume){
+        outputVolume(oVolume),
+        monitorMuted(mMute),
+        outputMuted(oMute){
     // Initialize monitor audio client in shared mode
     HRESULT hr;
     DWORD mon, out;
@@ -118,6 +122,13 @@ void SoundInstance::setOutputVolume(float volume) {
     outputVolume = volume;
 }
 
+void SoundInstance::muteMonitor(bool mute) {
+    monitorMuted.store(mute);
+}
+void SoundInstance::muteOutput(bool mute) {
+    outputMuted.store(mute);
+}
+
 void SoundInstance::onPcmReady(const QByteArray& data) {
     // called once when file fully decoded
 
@@ -143,7 +154,7 @@ void SoundInstance::startPlaybackThread() {
                 QFileInfo f(filePath);
                 qDebug() << QString("Failed to start the monitorAudioClient for sound instance: %1").arg(f.completeBaseName()+"."+f.suffix());
             }
-            writeAudioData(monitorAudioClient,monitorRenderClient, monitorVolume); // blocking loop
+            writeAudioData(monitorAudioClient,monitorRenderClient, monitorVolume, monitorMuted); // blocking loop
             monitorAudioClient->Stop();
             monitorRenderClient->Release();
         });
@@ -164,7 +175,7 @@ void SoundInstance::startPlaybackThread() {
                 QFileInfo f(filePath);
                 qDebug() << QString("Failed to start the outputAudioClient for sound instance: %1").arg(f.completeBaseName()+"."+f.suffix());
             }
-            writeAudioData(outputAudioClient,outputRenderClient, outputVolume); // blocking loop
+            writeAudioData(outputAudioClient,outputRenderClient, outputVolume, outputMuted); // blocking loop
             outputAudioClient->Stop();
             outputRenderClient->Release();
         });
@@ -176,7 +187,7 @@ void SoundInstance::startPlaybackThread() {
 }
 
 void SoundInstance::writeAudioData(IAudioClient *audioClient,
-                                   IAudioRenderClient *renderClient, const std::atomic<float>& volume) {
+                                   IAudioRenderClient *renderClient, const std::atomic<float>& volume, std::atomic<bool>& mute) {
 
     UINT32 bufferFrameCount = 0;
     audioClient->GetBufferSize(&bufferFrameCount);
@@ -205,7 +216,8 @@ void SoundInstance::writeAudioData(IAudioClient *audioClient,
         }
 
         //memcpy(pData, pcmData.data() + bytesConsumed, bytesToWrite);
-        float _volume = volume.load();
+        float _volume = volume.load() * (mute.load() ? 0.0f : 1.0f);
+
         // Copy + volume scale
         if (_qFormat.sampleFormat() == QAudioFormat::Float) {
             const float* src = reinterpret_cast<const float*>(pcmData.data() + bytesConsumed);

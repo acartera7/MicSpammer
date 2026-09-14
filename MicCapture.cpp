@@ -184,6 +184,15 @@ float MicCapture::getVolume() const {
     return outputVolume;
 }
 
+void MicCapture::mute(bool mute) {
+    muted.store(mute);
+}
+
+bool MicCapture::isMuted() const {
+    return muted.load();
+}
+
+
 void MicCapture::captureLoop() {
     //UINT32 blockAlign = captureFormat->nBlockAlign;
 
@@ -209,7 +218,8 @@ void MicCapture::captureLoop() {
             }
 
             size_t bytes = numFrames * captureFormat->nBlockAlign;
-            float vol = outputVolume.load();
+            float vol = outputVolume.load() * (muted.load() ? 0.0f : 1.0f);
+
 
             if (captureFormat->wFormatTag == WAVE_FORMAT_EXTENSIBLE) {
                 WAVEFORMATEXTENSIBLE* ext = reinterpret_cast<WAVEFORMATEXTENSIBLE*>(captureFormat);

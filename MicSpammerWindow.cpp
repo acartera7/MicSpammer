@@ -8,8 +8,8 @@ MicSpammerWindow::MicSpammerWindow(QWidget *parent) :
         deviceList(WasapiManager::getInstance().getDevices()) {
 
 
-    setFocusPolicy(Qt::StrongFocus);
-    setFocus();
+    //setFocusPolicy(Qt::StrongFocus);
+    //setFocus();
 
     mainWidget = new QWidget(this);
     setCentralWidget(mainWidget);
@@ -45,7 +45,7 @@ MicSpammerWindow::MicSpammerWindow(QWidget *parent) :
     //addToolBar(Qt::TopToolBarArea, profile_toolbar);
     // Main Toolbar & Button
     toolbar = new QToolBar(this);
-    playButton = new QPushButton("Play", this);
+    previewButton = new QPushButton("Preview", this);
     stopButton = new QPushButton("Stop", this);
 
 
@@ -168,7 +168,7 @@ MicSpammerWindow::MicSpammerWindow(QWidget *parent) :
     // toolbar right part layout container
     toolbar_rightContainer  = new QWidget(this);
     toolbar_rightHLayout  = new QHBoxLayout(this);
-    toolbar_rightHLayout->addWidget(playButton);
+    toolbar_rightHLayout->addWidget(previewButton);
     toolbar_rightHLayout->addSpacing(10); // Spacing between play & stop
     toolbar_rightHLayout->addWidget(stopButton);
     toolbar_rightHLayout->setContentsMargins(0, 0, 0, 0); // Removes extra margins
@@ -184,6 +184,13 @@ MicSpammerWindow::MicSpammerWindow(QWidget *parent) :
     mainVLayout->addWidget(toolbar);
 
     //QDir(QDir::homePath()).filePath("Music")
+    sendPreviewCheckBox = new QCheckBox(this);
+    sendPreviewCheckBox->setCursor(Qt::PointingHandCursor);
+    sendPreviewCheckBox->setCheckState(Qt::Unchecked);
+    sendPreviewCheckBox->setText("Play preview on Output Device");
+    sendPreviewCheckBox->setStyleSheet("QWidget { padding-left: 20px; }");
+
+    mainVLayout->addWidget(sendPreviewCheckBox);
 
     //create and fill horizontal main_content widget below toolbar
     mainContent_container  = new QWidget(this);
@@ -219,7 +226,7 @@ MicSpammerWindow::MicSpammerWindow(QWidget *parent) :
     connect(resetButton, &QPushButton::clicked, this, &MicSpammerWindow::onReset);
 
     connect(openFolderButton, &QPushButton::clicked, this, &MicSpammerWindow::onOpenFolder);
-    connect(playButton, &QPushButton::clicked, this, &MicSpammerWindow::onPlay);
+    connect(previewButton, &QPushButton::clicked, this, &MicSpammerWindow::onPreview);
     connect(stopButton, &QPushButton::clicked, this, &MicSpammerWindow::onStop);
     connect(micVolumeSlider, &QSlider::valueChanged, this,
         [this](int volume) {
@@ -235,10 +242,10 @@ MicSpammerWindow::MicSpammerWindow(QWidget *parent) :
         });
     // File actions
     connect(browser, &FileBrowserWidget::fileSelected, this, &MicSpammerWindow::onFileSelected);
-    connect(browser, &FileBrowserWidget::playSound, this, &MicSpammerWindow::onPlay);
+    connect(browser, &FileBrowserWidget::playSound, this, &MicSpammerWindow::onPreview);
     connect(numpad, &NumpadWidget::numpadTriggered,this,
         [this](int key, const QString &filePath) {
-            audioPlayer.play(filePath);
+            audioPlayer.play(filePath, true);
         });
 
     connect(numpad, &NumpadWidget::pageChanged, this, [](int page) {
@@ -258,27 +265,27 @@ MicSpammerWindow::MicSpammerWindow(QWidget *parent) :
     connect(micMuteCheckBox, &QCheckBox::checkStateChanged, this,
         [this](Qt::CheckState state) {
             if (state == Qt::Checked) {
-                onVolumeChanged(micVolumeSlider->objectName(), 0);
+                micCapture.mute(true);
             } else {
-                onVolumeChanged(micVolumeSlider->objectName(), micVolumeSlider->value());
+                micCapture.mute(false);
             }
     });
 
     connect(monitorMuteCheckBox, &QCheckBox::checkStateChanged, this,
         [this](Qt::CheckState state) {
             if (state == Qt::Checked) {
-                onVolumeChanged(monitorVolumeSlider->objectName(), 0);
+                audioPlayer.muteMonitor(true);
             } else {
-                onVolumeChanged(monitorVolumeSlider->objectName(), monitorVolumeSlider->value());
+                audioPlayer.muteMonitor(false);
             }
     });
 
     connect(sendMuteCheckBox, &QCheckBox::checkStateChanged, this,
         [this](Qt::CheckState state) {
             if (state == Qt::Checked) {
-                onVolumeChanged(sendVolumeSlider->objectName(), 0);
+                audioPlayer.muteOutput(true);
             } else {
-                onVolumeChanged(sendVolumeSlider->objectName(), sendVolumeSlider->value());
+                audioPlayer.muteOutput(false);
             }
     });
 
@@ -303,9 +310,9 @@ void MicSpammerWindow::onOpenFolder() {
     }
 }
 
-void MicSpammerWindow::onPlay() {
+void MicSpammerWindow::onPreview() {
     if (!selectedFilePath.isEmpty()) {
-        audioPlayer.play(selectedFilePath);  // Play last selected file
+        audioPlayer.play(selectedFilePath,sendPreviewCheckBox->isChecked());  // Play last selected file
     }
 }
 
@@ -455,12 +462,23 @@ void MicSpammerWindow::onSaveProfile() {
             {"outputdevice-id", sendComboBox->itemData(sendComboBox->currentIndex()).toString()},
             {"outputdevice-text", sendComboBox->itemText(sendComboBox->currentIndex())},
         };
+        // TODO save muted states
         root["volume"] = QJsonObject {
             {"mic-volume", micVolumeSlider->value()},
             {"monitor-volume", monitorVolumeSlider->value()},
             {"output-volume", sendVolumeSlider->value()}
         };
 
+        QJsonDocument doc(root);
+        if (file.open(QIODevice::WriteOnly)) {
+            file.write(doc.toJson());
+            file.close();
+
+            profileLabel->setText("Profile: " + QFileInfo(fileName).baseName());
+            currentProfilePath = fileName;
+        } else {
+            QMessageBox::warning(this, "Error", "Could not save file for writing.");
+        }
 
         profileLabel->setText("Profile: " + QFileInfo(fileName).baseName());
         currentProfilePath = fileName;

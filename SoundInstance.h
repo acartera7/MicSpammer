@@ -20,7 +20,7 @@
 class SoundInstance : public QObject {
     Q_OBJECT
 public:
-    explicit SoundInstance(const QString& path, IMMDevice* monitorDevice, IMMDevice* outputDevice, float mVolume, float oVolume, QObject *parent);
+    explicit SoundInstance(const QString& path, IMMDevice* monitorDevice, IMMDevice* outputDevice, float mVolume, float oVolume, bool mMute, bool oMute, QObject *parent);
     ~SoundInstance() override;
 
     void start();   // start loading + playback
@@ -28,6 +28,8 @@ public:
     QString getFileName();
     void setMonitorVolume(float volume);
     void setOutputVolume(float volume);
+    void muteMonitor(bool mute);
+    void muteOutput(bool mute);
 
 signals:
     void finished(SoundInstance *self); // clean up;
@@ -40,7 +42,7 @@ private:
     HRESULT initOutputAudioClient();
 
     void startPlaybackThread();
-    void writeAudioData(IAudioClient *audioClient, IAudioRenderClient *renderClient, const std::atomic<float>& volume);
+    void writeAudioData(IAudioClient *audioClient, IAudioRenderClient *renderClient, const std::atomic<float>& volume, std::atomic<bool>& mute);
 
     QString filePath;
     AudioLoader* loader = nullptr;
@@ -59,6 +61,10 @@ private:
     std::atomic<bool> stopFlag;
     std::atomic<float> monitorVolume;
     std::atomic<float> outputVolume;
+    std::atomic<bool> monitorMuted{false};
+    std::atomic<bool> outputMuted{false};
+
+
 
     QThread* playbackThreadMonitor = nullptr;
     QThread* playbackThreadOutput = nullptr;

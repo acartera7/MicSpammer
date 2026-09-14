@@ -7,7 +7,7 @@ FileBrowserWidget::FileBrowserWidget(QWidget *parent)
     : QWidget(parent)
 {
 
-    setFocusPolicy(Qt::NoFocus);
+    //setFocusPolicy(Qt::NoFocus);
     // Model shared between both views
     treeModel = new QFileSystemModel(this);
     treeModel->setFilter(QDir::AllDirs | QDir::NoDotAndDotDot);
@@ -49,8 +49,8 @@ FileBrowserWidget::FileBrowserWidget(QWidget *parent)
     layout->addWidget(splitter);
     setLayout(layout);
 
-    setFocusProxy(treeView);
-    setFocusProxy(listView);
+    //setFocusProxy(treeView);
+    //setFocusProxy(listView);
 
     // Change listView
     connect(treeView, &QTreeView::clicked, this, &FileBrowserWidget::listFolder);
@@ -97,7 +97,7 @@ void FileBrowserWidget::listFolder(const QModelIndex &index) {
 QJsonObject FileBrowserWidget::saveState() {
     QJsonObject state;
     state["curr-path"] = treeModel->fileInfo(treeView->currentIndex()).absoluteFilePath();
-    // TODO if (!listView->isHidden())
+    // TODO if (!listView->isHidden()) save this info
     state["root-path"] = treeModel->fileInfo(treeView->rootIndex()).absoluteFilePath();
     return state;
 }

@@ -1,4 +1,5 @@
 
+#include <ranges>
 #include "AudioPlayer.h"
 #include <QStandardPaths>
 
@@ -15,13 +16,13 @@ AudioPlayer::~AudioPlayer() {
     stopAll();
 }
 
-void AudioPlayer::play(const QString& filePath) {
+void AudioPlayer::play(const QString& filePath, bool sendToOutput) {
 
     DWORD monState = 0;
     DWORD outState = 0;
 
     const bool hasMonitor = (monitorDevice != nullptr);
-    const bool hasOutput  = (outputDevice  != nullptr);
+    const bool hasOutput  = (outputDevice  != nullptr) && sendToOutput;
 
     const bool monitorActive = hasMonitor &&
         SUCCEEDED(monitorDevice->GetState(&monState)) &&
@@ -44,10 +45,12 @@ void AudioPlayer::play(const QString& filePath) {
 
     auto* instance = new SoundInstance(
         filePath,
-        monitorDevice,
-        outputDevice,
+        monitorActive ? monitorDevice : nullptr,
+        outputActive ? outputDevice : nullptr,
         _monitorVolume,
         _outputVolume,
+        _monitorMuted,
+        _outputMuted,
         this
     );
     connect(instance, &SoundInstance::finished, this, &AudioPlayer::onInstanceFinished);
@@ -65,6 +68,13 @@ void AudioPlayer::stopAll() {
     }
     activeInstances.clear();
 }
+//TODO:
+// void AudioPlayer::stopInstance(const QString &filePath) {
+//     for (auto instance : activeInstances ) {
+//         if (instance->getFileName())
+//
+//     }
+// }
 
 void AudioPlayer::onInstanceFinished(SoundInstance* instance) {
     //qDebug() << "AudioPlayer: Instance " << instance->getFileName() << " finished.";
@@ -89,6 +99,27 @@ void AudioPlayer::setOutputVolume(float volume) {
     }
 }
 
+void AudioPlayer::muteMonitor(bool mute) {
+    _monitorMuted = mute;
+    for (auto* instance : activeInstances) {
+        instance->muteMonitor(mute);
+    }
+}
+
+void AudioPlayer::muteOutput(bool mute) {
+    _outputMuted = mute;
+    for (auto* instance : activeInstances) {
+        instance->muteOutput(mute);
+    }
+}
+
+bool AudioPlayer::isMonitorMuted() const {
+    return _monitorMuted;
+}
+bool AudioPlayer::isOuptutMuted() const {
+    return _outputMuted;
+}
+
 void AudioPlayer::setMonitorDevice(QString id) {
     releaseMonitorDevice();
     if (id.isEmpty() || id == "None") return;
@@ -107,6 +138,7 @@ void AudioPlayer::setOutputDevice(QString id) {
         return;
     }
 }
+
 
 void AudioPlayer::releaseMonitorDevice() {
     if (monitorDevice) { monitorDevice->Release(); monitorDevice = nullptr; }

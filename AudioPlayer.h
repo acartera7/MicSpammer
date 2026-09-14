@@ -39,13 +39,20 @@ public:
     AudioPlayer(const AudioPlayer&) = delete;
     AudioPlayer& operator=(const AudioPlayer&) = delete;
 
-    void play(const QString &filePath);
+    void play(const QString &filePath, bool sendToOutput);
     void stopAll();
+    //TODO:
+    //void stopInstance(const QString &filePath);
     void setMonitorVolume(float volume);
     void setOutputVolume(float volume);
+    void muteMonitor(bool mute);
+    void muteOutput(bool mute);
+    bool isMonitorMuted() const;
+    bool isOuptutMuted() const;
 
     void setMonitorDevice(QString id);
     void setOutputDevice(QString id);
+
 
     // session persistence
     //QJsonObject saveState();
@@ -67,6 +74,8 @@ private:
     std::vector<SoundInstance*> activeInstances;      // keep track of threads playing sound
     float _monitorVolume;
     float _outputVolume;
+    bool _monitorMuted;
+    bool _outputMuted;
 };
 
 

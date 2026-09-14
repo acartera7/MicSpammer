@@ -25,6 +25,8 @@ public:
     void start();
     void stop();
     float getVolume() const;
+    void mute(bool mute);
+    bool isMuted() const;
 
     // session persistence
     //QJsonObject saveState();
@@ -54,6 +56,7 @@ private:
 
     QThread* captureThread = nullptr;
     std::atomic<bool> stopFlag{false};
+    std::atomic<bool> muted{false};
 
     UINT32 bufferFrameCount = 0;
     WAVEFORMATEX* captureFormat;

@@ -41,7 +41,7 @@ private:
 
 // Handler Functions
     void onOpenFolder();
-    void onPlay();
+    void onPreview();
     void onStop();
     void onVolumeChanged(QString name, int volume);
     void onFileSelected(const QString &filePath);
@@ -70,11 +70,13 @@ private:
     QToolBar *toolbar;
     QToolBar *profile_toolbar;
 
-    QPushButton *openFolderButton, *playButton, *stopButton, *loadProfileButton, *saveProfileButton, *deleteProfileButton, *resetButton;
+    QPushButton *openFolderButton, *previewButton, *stopButton, *loadProfileButton, *saveProfileButton, *deleteProfileButton, *resetButton;
     QWidget *toolbarSpacer, *profileSpacer, *toolbar_rightContainer, *toolbar_devicesContainer, *mainContent_container;
     QHBoxLayout *toolbar_rightHLayout, *mainContent_HLayout;
+
     QSlider *micVolumeSlider, *monitorVolumeSlider, *sendVolumeSlider;
     QCheckBox *micMuteCheckBox, *monitorMuteCheckBox, *sendMuteCheckBox;
+    QCheckBox *sendPreviewCheckBox;
     QSplitter *mainContent_splitter;
 
     QLabel* micDeviceLabel, *monitorDeviceLabel, *sendDeviceLabel, *profileLabel;
