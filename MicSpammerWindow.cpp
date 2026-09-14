@@ -5,11 +5,17 @@ MicSpammerWindow::MicSpammerWindow(QWidget *parent) :
         QMainWindow(parent),  _window_x(800),_window_y(500),
         audioPlayer(AudioPlayer::getInstance()),
         micCapture(MicCapture::getInstance()),
+        keyboardHook(KeyboardHook::getInstance()),
         deviceList(WasapiManager::getInstance().getDevices()) {
 
 
     //setFocusPolicy(Qt::StrongFocus);
     //setFocus();
+    AudioPlayer::getInstance().setParent(this);
+    MicCapture::getInstance().setParent(this);
+    KeyboardHook::getInstance().setParent(this);
+
+    keyboardHook.start();
 
     mainWidget = new QWidget(this);
     setCentralWidget(mainWidget);
@@ -289,6 +295,8 @@ MicSpammerWindow::MicSpammerWindow(QWidget *parent) :
             }
     });
 
+    connect(&KeyboardHook::getInstance(), &KeyboardHook::numpadPressed, this, &MicSpammerWindow::onNumpadPressed);
+
     // Create saves folder if not already existing
     if (QDir().mkpath("saves")) {
     } else {
@@ -467,7 +475,6 @@ void MicSpammerWindow::onSaveProfile() {
             {"outputdevice-id", sendComboBox->itemData(sendComboBox->currentIndex()).toString()},
             {"outputdevice-text", sendComboBox->itemText(sendComboBox->currentIndex())},
         };
-        // TODO save muted states
         root["volume"] = QJsonObject {
             {"mic-volume", micVolumeSlider->value()},
             {"mic-muted", micMuteCheckBox->isChecked()},
@@ -608,25 +615,30 @@ bool MicSpammerWindow::isDeviceValid(QString deviceName) {
 }
 
 
-MicSpammerWindow::~MicSpammerWindow() = default;
+MicSpammerWindow::~MicSpammerWindow() {
+    keyboardHook.stop();
+}
 
-// MicSpammerWindow.cpp
-void MicSpammerWindow::keyPressEvent(QKeyEvent *event) {
-    switch (event->key()) {
-    case Qt::Key_Plus:  numpad->nextPage();     break;
-    case Qt::Key_Minus: numpad->prevPage();     break;
-    case Qt::Key_1:     numpad->triggerKey(1);  break;
-    case Qt::Key_2:     numpad->triggerKey(2);  break;
-    case Qt::Key_3:     numpad->triggerKey(3);  break;
-    case Qt::Key_4:     numpad->triggerKey(4);  break;
-    case Qt::Key_5:     numpad->triggerKey(5);  break;
-    case Qt::Key_6:     numpad->triggerKey(6);  break;
-    case Qt::Key_7:     numpad->triggerKey(7);  break;
-    case Qt::Key_8:     numpad->triggerKey(8);  break;
-    case Qt::Key_9:     numpad->triggerKey(9);  break;
+
+void MicSpammerWindow::onNumpadPressed(int key) {
+
+    switch (key) {
+
+    case VK_ADD:        numpad->nextPage();     break;
+    case VK_SUBTRACT:   numpad->prevPage();     break;
+    case VK_NUMPAD1:    numpad->triggerKey(1);  break;
+    case VK_NUMPAD2:    numpad->triggerKey(2);  break;
+    case VK_NUMPAD3:    numpad->triggerKey(3);  break;
+    case VK_NUMPAD4:    numpad->triggerKey(4);  break;
+    case VK_NUMPAD5:    numpad->triggerKey(5);  break;
+    case VK_NUMPAD6:    numpad->triggerKey(6);  break;
+    case VK_NUMPAD7:    numpad->triggerKey(7);  break;
+    case VK_NUMPAD8:    numpad->triggerKey(8);  break;
+    case VK_NUMPAD9:    numpad->triggerKey(9);  break;
+
+    case VK_NUMPAD0:    audioPlayer.stopAll();  break;
 
     default:
-        QMainWindow::keyPressEvent(event);
         break;
     }
 }

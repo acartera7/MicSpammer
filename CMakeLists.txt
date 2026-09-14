@@ -59,6 +59,8 @@ add_executable(MicSpammer
         SoundInstance.h
         MicCapture.cpp
         MicCapture.h
+        KeyboardHook.cpp
+        KeyboardHook.h
 )
 
 # Link the WASAPI libraries

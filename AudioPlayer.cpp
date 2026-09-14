@@ -63,8 +63,10 @@ void AudioPlayer::play(const QString& filePath, bool sendToOutput) {
 void AudioPlayer::stopAll() {
     qDebug() << "AudioPlayer: Stop all sounds";
     for (auto* instance : activeInstances) {
-        instance->stop();
-        instance->deleteLater();
+        if (instance) {
+            instance->stop();
+            instance->deleteLater();
+        }
     }
     activeInstances.clear();
 }

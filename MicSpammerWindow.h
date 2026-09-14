@@ -17,6 +17,7 @@
 #include "FileBrowserWidget.h"
 #include "NumpadWidget.h"
 #include "AudioPlayer.h"
+#include "KeyboardHook.h"
 #include "MicCapture.h"
 #include "WasapiManager.h"
 
@@ -31,7 +32,7 @@ public:
     ~MicSpammerWindow();
 
 protected:
-    void keyPressEvent(QKeyEvent *event) override;
+    //void keyPressEvent(QKeyEvent *event) override;
     //void focusInEvent(QFocusEvent *event) override;
     //void focusOutEvent(QFocusEvent *event) override;
 
@@ -50,7 +51,7 @@ private:
     void onDeleteProfile();
     void onReset();
     void resetProfileSettings();
-
+    void onNumpadPressed(int key);
     void onMicDeviceChanged(int index);
     void onMonitorDeviceChanged(int index);
     void onSendDeviceChanged(int index);
@@ -62,6 +63,7 @@ private:
     MicCapture& micCapture;
     FileBrowserWidget *browser;
     NumpadWidget *numpad;
+    KeyboardHook& keyboardHook;
 
     // GUI Elements
     QWidget     *mainWidget;
