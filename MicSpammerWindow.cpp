@@ -412,8 +412,13 @@ void MicSpammerWindow::onLoadProfile() {
 
         QJsonObject volumeObj = root["volume"].toObject();
         micVolumeSlider->setValue(volumeObj["mic-volume"].toInt());
+        micMuteCheckBox->setChecked(volumeObj["mic-muted"].toBool());
         monitorVolumeSlider->setValue(volumeObj["monitor-volume"].toInt());
+        monitorMuteCheckBox->setChecked(volumeObj["monitor-muted"].toBool());
         sendVolumeSlider->setValue(volumeObj["output-volume"].toInt());
+        sendMuteCheckBox->setChecked(volumeObj["output-muted"].toBool());
+
+        sendPreviewCheckBox->setChecked(root["send-preview"].toBool());
 
         profileLabel->setText("Profile: " + QFileInfo(fileName).baseName());
         currentProfilePath = fileName;
@@ -465,9 +470,13 @@ void MicSpammerWindow::onSaveProfile() {
         // TODO save muted states
         root["volume"] = QJsonObject {
             {"mic-volume", micVolumeSlider->value()},
+            {"mic-muted", micMuteCheckBox->isChecked()},
             {"monitor-volume", monitorVolumeSlider->value()},
-            {"output-volume", sendVolumeSlider->value()}
+            {"monitor-muted", monitorMuteCheckBox->isChecked()},
+            {"output-volume", sendVolumeSlider->value()},
+            {"output-muted", sendMuteCheckBox->isChecked()}
         };
+        root["send-preview"] = QJsonValue {sendPreviewCheckBox->isChecked()};
 
         QJsonDocument doc(root);
         if (file.open(QIODevice::WriteOnly)) {
