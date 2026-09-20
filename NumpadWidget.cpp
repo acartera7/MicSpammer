@@ -235,6 +235,7 @@ void NumpadWidget::prevPage() {
     }
 }
 
+// TODO tie animation to actual button down button up
 void NumpadWidget::animateButtonPress(int key) {
     if (buttons.contains(key)) {
         QPushButton *btn = buttons[key];

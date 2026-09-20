@@ -9,7 +9,9 @@ AudioPlayer & AudioPlayer::getInstance() {
 }
 
 AudioPlayer::AudioPlayer(QObject *parent) : QObject(parent),
-        _monitorVolume(1.0f), _outputVolume(0) {
+        _monitorVolume(1.0f), _outputVolume(0), _monitorMuted(false),
+        _outputMuted(false) {
+
 }
 
 AudioPlayer::~AudioPlayer() {
@@ -61,6 +63,8 @@ void AudioPlayer::play(const QString& filePath, bool sendToOutput) {
 
 
 void AudioPlayer::stopAll() {
+    if (activeInstances.empty()) return;
+
     qDebug() << "AudioPlayer: Stop all sounds";
     for (auto* instance : activeInstances) {
         if (instance) {

@@ -11,9 +11,9 @@ MicSpammerWindow::MicSpammerWindow(QWidget *parent) :
 
     //setFocusPolicy(Qt::StrongFocus);
     //setFocus();
-    AudioPlayer::getInstance().setParent(this);
-    MicCapture::getInstance().setParent(this);
-    KeyboardHook::getInstance().setParent(this);
+    //AudioPlayer::getInstance().setParent(this);
+    //MicCapture::getInstance().setParent(this);
+    //KeyboardHook::getInstance().setParent(this);
 
     keyboardHook.start();
 
@@ -303,7 +303,9 @@ MicSpammerWindow::MicSpammerWindow(QWidget *parent) :
         qDebug() << "Error MicSpammerWindow: failed to make /saves folder" ;
     }
 
-    // TODO check for last profile
+    if (cacheLookupProfilePath()) {
+        loadProfile();
+    }
 
     monitorVolumeSlider->setValue(80);
     sendVolumeSlider->setValue(80);
@@ -356,21 +358,15 @@ void MicSpammerWindow::onFileSelected(const QString &filePath) {
     selectedFilePath = filePath;
 }
 
-void MicSpammerWindow::onLoadProfile() {
-    QString fileName = QFileDialog::getOpenFileName(
-        this,
-        "Load Profile",
-        QDir("saves").absolutePath(),
-        "Profile Files (*.json)"
-    );
+bool MicSpammerWindow::loadProfile() {
+    if (!currentProfilePath.isEmpty()) {
 
-    if (!fileName.isEmpty()) {
+        QFile file(currentProfilePath);
+        if (!file.open(QIODevice::ReadOnly)) return true;
 
-        QFile file(fileName);
-        if (!file.open(QIODevice::ReadOnly)) return;
 
         QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
-        if (doc.isNull()) return;
+        if (doc.isNull()) return true;
 
         // load states for browser and numpad widgets
         QJsonObject root = doc.object();
@@ -380,7 +376,7 @@ void MicSpammerWindow::onLoadProfile() {
         // load state for the window size
         QJsonObject winObj = root["window"].toObject();
         QSize winSize(winObj["w"].toInt(),
-                   winObj["h"].toInt());
+                      winObj["h"].toInt());
         resize(winSize.width(), winSize.height());
 
         // load states for the devices and volumes
@@ -428,19 +424,30 @@ void MicSpammerWindow::onLoadProfile() {
 
         sendPreviewCheckBox->setChecked(root["send-preview"].toBool());
 
-        profileLabel->setText("Profile: " + QFileInfo(fileName).baseName());
-        currentProfilePath = fileName;
+        profileLabel->setText("Profile: " + QFileInfo(currentProfilePath).baseName());
+        cacheProfilePath();
 
+        return true;
     }
+    return false;
 }
 
-void MicSpammerWindow::onSaveProfile() {
-    QString fileName = QFileDialog::getSaveFileName(
+void MicSpammerWindow::onLoadProfile() {
+    QString fileName = QFileDialog::getOpenFileName(
         this,
-        "Save Profile",
+        "Load Profile",
         QDir("saves").absolutePath(),
         "Profile Files (*.json)"
     );
+
+    currentProfilePath = fileName;
+    if (!loadProfile()) {
+        qDebug() << "failed to load profile: " << fileName;
+        exit(-2);
+    }
+}
+
+bool MicSpammerWindow::saveProfile(QString fileName) {
     if (!fileName.isEmpty()) {
         QFile file(fileName);
         if (file.exists()) {
@@ -452,7 +459,7 @@ void MicSpammerWindow::onSaveProfile() {
             );
 
             if (reply == QMessageBox::No) {
-                return; // user cancelled overwrite
+                return true; // user cancelled overwrite
             }
         }
 
@@ -490,14 +497,30 @@ void MicSpammerWindow::onSaveProfile() {
             file.write(doc.toJson());
             file.close();
 
-            profileLabel->setText("Profile: " + QFileInfo(fileName).baseName());
-            currentProfilePath = fileName;
         } else {
             QMessageBox::warning(this, "Error", "Could not save file for writing.");
+            return true;
         }
 
         profileLabel->setText("Profile: " + QFileInfo(fileName).baseName());
         currentProfilePath = fileName;
+        cacheProfilePath();
+        return true;
+    }
+    return false;
+}
+
+void MicSpammerWindow::onSaveProfile() {
+    QString fileName = QFileDialog::getSaveFileName(
+        this,
+        "Save Profile",
+        QDir("saves").absolutePath(),
+        "Profile Files (*.json)"
+    );
+
+    if (!saveProfile(fileName)) {
+        qDebug() << "failed to save profile: " << fileName;
+        exit(-2);
     }
 }
 
@@ -548,8 +571,7 @@ void MicSpammerWindow::onReset() {
     }
 
     resetProfileSettings();
-    currentProfilePath.clear();
-    profileLabel->setText("Profile: None");
+
 }
 
 void MicSpammerWindow::resetProfileSettings() {
@@ -569,6 +591,13 @@ void MicSpammerWindow::resetProfileSettings() {
     monitorVolumeSlider->setValue(80);
     sendVolumeSlider->setValue(80);
 
+    //reset mute checkboxes
+    micMuteCheckBox->setChecked(false);
+    monitorMuteCheckBox->setChecked(false);
+    sendMuteCheckBox->setChecked(false);
+
+    previewButton->setChecked(false);
+
     // Reset file browser
     browser->setRootDirectory(QDir::homePath());
     selectedFilePath.clear();
@@ -578,7 +607,10 @@ void MicSpammerWindow::resetProfileSettings() {
     setGeometry(100, 100, _window_x, _window_y);
 
     // Clear profile label
+    currentProfilePath.clear();
     profileLabel->setText("Profile: None");
+
+    cacheProfilePath();
 
     qDebug() << "Profile settings reset to defaults.";
 }
@@ -599,10 +631,52 @@ void MicSpammerWindow::onSendDeviceChanged(int index) {
     audioPlayer.setOutputDevice(id);
 }
 
-bool MicSpammerWindow::isDeviceValid(QString deviceName) {
+bool MicSpammerWindow::cacheProfilePath() {
+
+    QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+
+    QDir dir(cacheDir);
+    if (!dir.exists()) {
+        if (!dir.mkpath(".")) {
+            qDebug() << "Couldn't create cache directory: " << cacheDir;
+            return false;
+        }
+    }
+    assert(dir.exists());
+
+    QFile file(cacheDir + "/.cache");
+    if (file.open(QFile::WriteOnly)) {
+        QDataStream out(&file);
+        out.setVersion(QDataStream::Qt_DefaultCompiledVersion);
+        out << currentProfilePath;
+        file.close();
+        return true;
+    }
+    qDebug() << "Couldn't open cache file for saving: " << cacheDir;
+    return false;
+}
+
+bool MicSpammerWindow::cacheLookupProfilePath() {
+    QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+
+    QFile file(cacheDir + "/.cache");
+    if (file.open(QFile::ReadOnly)) {
+        QDataStream in(&file);
+        in.setVersion(QDataStream::Qt_DefaultCompiledVersion);
+
+        in >> currentProfilePath;
+        file.close();
+        return true;
+    }
+
+    qDebug() << "Couldn't open cache file for loading: " << cacheDir;
+    return false;
+}
+
+bool MicSpammerWindow::isDeviceValid(const QString &deviceName) {
     if (deviceName.isEmpty())
         return false;
-    std::vector<AudioDeviceInfo>::const_iterator it = std::find_if(deviceList.begin(), deviceList.end(),
+    auto it = std::find_if(deviceList.begin(), deviceList.end(),
             [=](const AudioDeviceInfo& device) {
                 std::wstring wname = deviceName.toStdWString();
                 if (device.id == wname)
@@ -619,7 +693,7 @@ MicSpammerWindow::~MicSpammerWindow() {
     keyboardHook.stop();
 }
 
-
+//TODO deal with user holding down the numpad resulting in sound spamming
 void MicSpammerWindow::onNumpadPressed(int key) {
 
     switch (key) {

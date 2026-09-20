@@ -13,6 +13,7 @@
 #include <QJsonObject>
 #include <QMessageBox>
 #include <QCheckBox>
+#include <QStandardPaths>
 
 #include "FileBrowserWidget.h"
 #include "NumpadWidget.h"
@@ -38,7 +39,6 @@ protected:
 
 private:
     int _window_x, _window_y;
-    QString currentProfilePath;
 
 // Handler Functions
     void onOpenFolder();
@@ -46,8 +46,14 @@ private:
     void onStop();
     void onVolumeChanged(QString name, int volume);
     void onFileSelected(const QString &filePath);
+
+    bool loadProfile();
+
     void onLoadProfile();
-    void onSaveProfile();
+
+bool saveProfile(QString fileName);
+
+void onSaveProfile();
     void onDeleteProfile();
     void onReset();
     void resetProfileSettings();
@@ -56,9 +62,15 @@ private:
     void onMonitorDeviceChanged(int index);
     void onSendDeviceChanged(int index);
 
-    bool isDeviceValid(QString deviceName);
+bool cacheProfilePath();
 
-    QString selectedFilePath;
+bool cacheLookupProfilePath();
+
+    bool isDeviceValid(const QString &deviceName);
+
+    QString selectedFilePath = "";
+    QString currentProfilePath = "";
+
     AudioPlayer& audioPlayer;
     MicCapture& micCapture;
     FileBrowserWidget *browser;
