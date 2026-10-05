@@ -137,6 +137,8 @@ void SoundInstance::muteOutput(bool mute) {
 }
 
 void SoundInstance::onFinished() {
+    QMutexLocker lock(&mtx_reserve);
+
     decoderFinished = true;
 }
 
@@ -146,7 +148,6 @@ void SoundInstance::onPcmReady(const QByteArray& data) {
         QMutexLocker lock(&mtx_reserve);
 
         reservePcmArray.append(data);
-        hasDecodedData = true;
     }
 
     cv_bufferReady.wakeAll();
@@ -203,24 +204,26 @@ void SoundInstance::playbackAudioData(IAudioClient *audioClient,
 
     UINT32 bufferFrameCount = 0;
     audioClient->GetBufferSize(&bufferFrameCount);
-
+    size_t offset = 0;
+    qsizetype endOfReserve;
     while (!stopFlag) {
 
         {
-            // lock and get
             QMutexLocker lock(&mtx_reserve);
 
-            while (!hasDecodedData && !decoderFinished && !stopFlag) {
+            endOfReserve = reservePcmArray.size();
+            while (endOfReserve < 1 && !decoderFinished && !stopFlag) {
                 cv_bufferReady.wait(&mtx_reserve);
+                endOfReserve = reservePcmArray.size();
             }
 
             if (stopFlag)
                 break;
 
-            if (!hasDecodedData && decoderFinished)
+            if (static_cast<qsizetype>(offset) == endOfReserve && decoderFinished)
                 break;
-        }
 
+        }
 
         UINT32 padding = 0;
         audioClient->GetCurrentPadding(&padding);
@@ -237,7 +240,7 @@ void SoundInstance::playbackAudioData(IAudioClient *audioClient,
         if (FAILED(hr)) break;
 
         size_t bytesToWrite = framesAvailable * bytesPerFrame;
-        size_t bytesRemaining = totalBytes - monitorReadOffset;
+        size_t bytesRemaining = endOfReserve - offset;
 
         if (bytesToWrite > bytesRemaining) {
             bytesToWrite = bytesRemaining;
@@ -249,12 +252,12 @@ void SoundInstance::playbackAudioData(IAudioClient *audioClient,
 
         // Copy + volume scale
         if (_qFormat.sampleFormat() == QAudioFormat::Float) {
-            const float* src = reinterpret_cast<const float*>(pcmData.data() + bytesConsumed);
+            const float* src = reinterpret_cast<const float*>(reservePcmArray.data() + offset);
             float* dst = reinterpret_cast<float*>(pData);
             size_t samples = bytesToWrite / sizeof(float);
             for (size_t i = 0; i < samples; ++i) dst[i] = src[i] * _volume;
         } else {
-            const int16_t* src = reinterpret_cast<const int16_t*>(pcmData.data() + bytesConsumed);
+            const int16_t* src = reinterpret_cast<const int16_t*>(reservePcmArray.data() + offset);
             int16_t* dst = reinterpret_cast<int16_t*>(pData);
             size_t samples = bytesToWrite / sizeof(int16_t);
             for (size_t i = 0; i < samples; ++i) {
@@ -262,7 +265,7 @@ void SoundInstance::playbackAudioData(IAudioClient *audioClient,
                 dst[i] = std::clamp(sample, -32768, 32767);
             }
         }
-        bytesConsumed += bytesToWrite;
+        offset += bytesToWrite;
         hr = renderClient->ReleaseBuffer(framesAvailable, 0);
         if (FAILED(hr)) {
             QFileInfo f(filePath);

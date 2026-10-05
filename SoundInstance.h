@@ -72,18 +72,14 @@ private:
     std::atomic<bool> monitorMuted{false};
     std::atomic<bool> outputMuted{false};
 
-
-
     QThread* playbackThreadMonitor = nullptr;
     QThread* playbackThreadOutput = nullptr;
 
     IAudioClient* monitorAudioClient = nullptr;
     IAudioClient* outputAudioClient = nullptr;
 
-    std::atomic<qsizetype> monitorReadOffset = 0;
-    std::atomic<qsizetype> outputReadOffset = 0;
+    std::atomic<qsizetype> lowestOffset = 0;
 
-    bool hasDecodedData = false;
     bool decoderFinished = false;
 
     QAudioFormat _qFormat;
