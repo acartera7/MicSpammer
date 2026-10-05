@@ -15,7 +15,8 @@ public:
     ~AudioLoader() override;
 
     signals:
-    void pcmReady(const QByteArray& data, const QAudioFormat& format);
+    void pcmReady(QByteArray data);
+    void loadingFinished();
 
 private slots:
     void onBufferReady();
@@ -23,7 +24,5 @@ private slots:
 
 private:
     QAudioDecoder* decoder;
-    QByteArray accumulatedData;
-    QAudioFormat _audioFormat;
 };
 #endif //MICSPAMMER_AUDIOLOADER_H

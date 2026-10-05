@@ -11,6 +11,7 @@
 
 #include <QThread>
 #include <QMutex>
+#include <QWaitCondition>
 #include <atomic>
 
 #include  "AudioLoader.h"
@@ -30,6 +31,7 @@ public:
     void setOutputVolume(float volume);
     void muteMonitor(bool mute);
     void muteOutput(bool mute);
+    void onFinished();
 
 signals:
     void finished(SoundInstance *self); // clean up;
@@ -41,19 +43,25 @@ private:
     HRESULT initMonitorAudioClient();
     HRESULT initOutputAudioClient();
 
-    void startPlaybackThread();
-    void writeAudioData(IAudioClient *audioClient, IAudioRenderClient *renderClient, const std::atomic<float>& volume, std::atomic<bool>& mute);
+    void startPlaybackThreads();
+    void playbackAudioData(IAudioClient *audioClient, IAudioRenderClient *renderClient, const std::atomic<float>& volume, std::atomic<bool>& mute);
 
     QString filePath;
     AudioLoader* loader = nullptr;
 
     // =========== PRELOAD MODEL =========== (current implementation)
+    /*
     std::vector<BYTE> pcmData;
     bool loadedOK = false;
+    */
 
     // =========== STREAMING MODEL =========== //TODO make audio streaming
-    //QQueue<QByteArray> pcmQueue;
-    //QMutex queueMutex
+
+    bool playbackActive = false;
+    QByteArray reservePcmArray = {};
+
+    QMutex mtx_reserve;
+    QWaitCondition cv_bufferReady;
     // Format will be set once from the first buffer
     // QAudioFormat streamFormat;
     // bool streamingMode = false; // flag to switch between preload vs streaming
@@ -71,6 +79,12 @@ private:
 
     IAudioClient* monitorAudioClient = nullptr;
     IAudioClient* outputAudioClient = nullptr;
+
+    std::atomic<qsizetype> monitorReadOffset = 0;
+    std::atomic<qsizetype> outputReadOffset = 0;
+
+    bool hasDecodedData = false;
+    bool decoderFinished = false;
 
     QAudioFormat _qFormat;
 

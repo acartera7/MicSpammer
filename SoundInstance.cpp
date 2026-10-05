@@ -20,44 +20,46 @@ SoundInstance::SoundInstance(const QString& path,
         monitorVolume(mVolume),
         outputVolume(oVolume),
         monitorMuted(mMute),
-        outputMuted(oMute){
+        outputMuted(oMute) {
     // Initialize monitor audio client in shared mode
     HRESULT hr;
     DWORD mon, out;
-    if ( monitorDevice) {
+    if (monitorDevice) {
         monitorDevice->GetState(&mon);
         if (mon == DEVICE_STATE_ACTIVE) {
-
-            hr = monitorDevice->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,(void**)&monitorAudioClient);
+            hr = monitorDevice->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, (void **) &monitorAudioClient);
             if (FAILED(hr) || !monitorAudioClient) {
                 QFileInfo f(filePath);
-                qDebug() << QString("Failed to activate audio client for sound instance: %1").arg(f.completeBaseName()+"."+f.suffix());
+                qDebug() << QString("Failed to activate audio client for sound instance: %1").arg(
+                    f.completeBaseName() + "." + f.suffix());
                 return;
             }
 
             hr = initMonitorAudioClient();
             if (FAILED(hr)) {
                 QFileInfo f(filePath);
-                qDebug() << QString("Failed to initialize monitor audio client for sound instance: %1").arg(f.completeBaseName()+"."+f.suffix());
+                qDebug() << QString("Failed to initialize monitor audio client for sound instance: %1").arg(
+                    f.completeBaseName() + "." + f.suffix());
             }
         }
     }
     if (outputDevice) {
         outputDevice->GetState(&out);
         if (out == DEVICE_STATE_ACTIVE) {
-
             // Initialize output audio client in shared mode
-            hr = outputDevice->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,(void**)&outputAudioClient);
+            hr = outputDevice->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, (void **) &outputAudioClient);
             if (FAILED(hr) || !outputAudioClient) {
                 QFileInfo f(filePath);
-                qDebug() << QString("Failed to activate audio client for sound instance: %1").arg(f.completeBaseName()+"."+f.suffix());
+                qDebug() << QString("Failed to activate audio client for sound instance: %1").arg(
+                    f.completeBaseName() + "." + f.suffix());
                 return;
             }
 
             hr = initOutputAudioClient();
             if (FAILED(hr)) {
                 QFileInfo f(filePath);
-                qDebug() << QString("Failed to initialize output audio client: for sound instance: %1").arg(f.completeBaseName()+"."+f.suffix());
+                qDebug() << QString("Failed to initialize output audio client: for sound instance: %1").arg(
+                    f.completeBaseName() + "." + f.suffix());
             }
         }
     }
@@ -76,9 +78,15 @@ SoundInstance::SoundInstance(const QString& path,
     loader->setDecoderFormat(qFormat);
     _qFormat = qFormat;
 
-    //TODO fix bug where device is disconnected
+    // TODO fix bug where device is disconnected (fixed?)
+    // TODO add buffering to allow big files to play as the loader continues to load. It should check for file size first
     connect(loader, &AudioLoader::pcmReady, this, &SoundInstance::onPcmReady);
+    connect(loader, &AudioLoader::loadingFinished, this, &SoundInstance::onFinished);
+
+    startPlaybackThreads();
+
 }
+
 SoundInstance::~SoundInstance() {
     stop();
     if (monitorAudioClient)
@@ -89,7 +97,6 @@ SoundInstance::~SoundInstance() {
 
 void SoundInstance::start() {
     loader->loadFile(filePath);
-    loadedOK = false;
 }
 
 void SoundInstance::stop() {
@@ -129,18 +136,23 @@ void SoundInstance::muteOutput(bool mute) {
     outputMuted.store(mute);
 }
 
-void SoundInstance::onPcmReady(const QByteArray& data) {
-    // called once when file fully decoded
-
-    pcmData = std::vector<BYTE>(data.begin(), data.end());
-    loadedOK = true;
-
-    startPlaybackThread();
+void SoundInstance::onFinished() {
+    decoderFinished = true;
 }
 
-void SoundInstance::startPlaybackThread() {
-    if (!loadedOK)
-        return;
+void SoundInstance::onPcmReady(const QByteArray& data) {
+    // called once when file fully decoded3
+    {
+        QMutexLocker lock(&mtx_reserve);
+
+        reservePcmArray.append(data);
+        hasDecodedData = true;
+    }
+
+    cv_bufferReady.wakeAll();
+}
+
+void SoundInstance::startPlaybackThreads() {
 
     if (monitorAudioClient) {
         playbackThreadMonitor = QThread::create([this]() {
@@ -154,7 +166,7 @@ void SoundInstance::startPlaybackThread() {
                 QFileInfo f(filePath);
                 qDebug() << QString("Failed to start the monitorAudioClient for sound instance: %1").arg(f.completeBaseName()+"."+f.suffix());
             }
-            writeAudioData(monitorAudioClient,monitorRenderClient, monitorVolume, monitorMuted); // blocking loop
+            playbackAudioData(monitorAudioClient,monitorRenderClient, monitorVolume, monitorMuted); // blocking loop
             monitorAudioClient->Stop();
             monitorRenderClient->Release();
         });
@@ -175,7 +187,7 @@ void SoundInstance::startPlaybackThread() {
                 QFileInfo f(filePath);
                 qDebug() << QString("Failed to start the outputAudioClient for sound instance: %1").arg(f.completeBaseName()+"."+f.suffix());
             }
-            writeAudioData(outputAudioClient,outputRenderClient, outputVolume, outputMuted); // blocking loop
+            playbackAudioData(outputAudioClient,outputRenderClient, outputVolume, outputMuted); // blocking loop
             outputAudioClient->Stop();
             outputRenderClient->Release();
         });
@@ -186,19 +198,35 @@ void SoundInstance::startPlaybackThread() {
     }
 }
 
-void SoundInstance::writeAudioData(IAudioClient *audioClient,
+void SoundInstance::playbackAudioData(IAudioClient *audioClient,
                                    IAudioRenderClient *renderClient, const std::atomic<float>& volume, std::atomic<bool>& mute) {
 
     UINT32 bufferFrameCount = 0;
     audioClient->GetBufferSize(&bufferFrameCount);
 
-    size_t totalBytes = pcmData.size();
-    size_t bytesConsumed = 0;
+    while (!stopFlag) {
 
-    while (!stopFlag && bytesConsumed < totalBytes) {
+        {
+            // lock and get
+            QMutexLocker lock(&mtx_reserve);
+
+            while (!hasDecodedData && !decoderFinished && !stopFlag) {
+                cv_bufferReady.wait(&mtx_reserve);
+            }
+
+            if (stopFlag)
+                break;
+
+            if (!hasDecodedData && decoderFinished)
+                break;
+        }
+
+
         UINT32 padding = 0;
         audioClient->GetCurrentPadding(&padding);
+
         UINT32 framesAvailable = bufferFrameCount - padding;
+
         if (framesAvailable == 0) {
             QThread::msleep(1);
             continue;
@@ -209,7 +237,8 @@ void SoundInstance::writeAudioData(IAudioClient *audioClient,
         if (FAILED(hr)) break;
 
         size_t bytesToWrite = framesAvailable * bytesPerFrame;
-        size_t bytesRemaining = totalBytes - bytesConsumed;
+        size_t bytesRemaining = totalBytes - monitorReadOffset;
+
         if (bytesToWrite > bytesRemaining) {
             bytesToWrite = bytesRemaining;
             framesAvailable = (UINT32)(bytesToWrite / bytesPerFrame);

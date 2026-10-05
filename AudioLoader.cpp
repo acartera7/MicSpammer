@@ -2,6 +2,7 @@
 
 #include "AudioLoader.h"
 
+#include <QMutex>
 #include <qurl.h>
 
 AudioLoader::AudioLoader(QObject *parent) {
@@ -15,6 +16,7 @@ AudioLoader::AudioLoader(QObject *parent) {
 void AudioLoader::loadFile(const QString &path) {
     qDebug() << QString("Loading file: %1.").arg(path);
     decoder->setSource(QUrl::fromLocalFile(path));
+
     decoder->start();
 }
 
@@ -42,16 +44,13 @@ void AudioLoader::onBufferReady() {
     //     << "bits,"
     //     << "byteCount=" << buffer.byteCount();
 
-    QByteArray pcm(reinterpret_cast<const char*>(buffer.constData<char>()),
-                   buffer.byteCount());
 
-    accumulatedData.append(pcm);
-    if (!_audioFormat.isValid())
-        _audioFormat = buffer.format();
+    QByteArray pcm((buffer.constData<char>()),
+                   buffer.byteCount());
+    emit pcmReady(pcm);
+
 }
 
 void AudioLoader::onFinished() {
-    qDebug() << "File Loaded.";
-    emit pcmReady(accumulatedData, _audioFormat);
-    accumulatedData.clear();
+    emit loadingFinished();
 }
